@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework import status
@@ -32,6 +34,18 @@ class PostRetrieveAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
 
+    def update(self, request, *args, **kwargs):
+        post = self.get_object()
+        if post.user != request.user:
+            return Response({"message": "You are not owner of this post"}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        post = self.get_object()
+        if post.user != request.user:
+            return Response({"message": "You are not owner of this post"}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
 
 class LikeAPIView(generics.ListCreateAPIView):
     queryset = Like.objects.all()
@@ -43,7 +57,10 @@ class LikeAPIView(generics.ListCreateAPIView):
         if not serializer.is_valid():
             return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-        post = serializer.validated_data['post']
+        validated_data = cast(dict[str, Any], serializer.validated_data)
+        post = validated_data.get('post')
+        if post is None:
+            return Response({"message": "Post is required"}, status=status.HTTP_400_BAD_REQUEST)
         like_obj = Like.objects.filter(post=post, account=request.user).first()
 
         if not like_obj:
